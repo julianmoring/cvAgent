@@ -13,6 +13,9 @@ from src.models import (
     Experience,
     ExperienceCreate,
     ExperienceRead,
+    Project,
+    ProjectCreate,
+    ProjectRead,
     Skill,
     SkillCreate,
     SkillRead,
@@ -29,6 +32,15 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(lifespan=lifespan)
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+
+async def find_skills(session: AsyncSession, names: list[str]) -> list[Skill]:
+    wanted = set(names)
+    found = list((await session.exec(select(Skill).where(col(Skill.name).in_(wanted)))).all())
+    missing = wanted - {skill.name for skill in found}
+    if missing:
+        raise HTTPException(status_code=422, detail=f"unknown skills: {sorted(missing)}")
+    return found
 
 
 @app.get("/")
@@ -66,12 +78,8 @@ async def list_skills(session: SessionDep) -> list[Skill]:
 
 @app.post("/experiences", status_code=201, response_model=ExperienceRead)
 async def create_experience(data: ExperienceCreate, session: SessionDep) -> Experience:
-    names = set(data.skills)
-    found = (await session.exec(select(Skill).where(col(Skill.name).in_(names)))).all()
-    missing = names - {skill.name for skill in found}
-    if missing:
-        raise HTTPException(status_code=422, detail=f"unknown skills: {sorted(missing)}")
-    experience = Experience(**data.model_dump(exclude={"skills"}), skills=list(found))
+    skills = await find_skills(session, data.skills)
+    experience = Experience(**data.model_dump(exclude={"skills"}), skills=skills)
     session.add(experience)
     await session.commit()
     return experience
@@ -85,3 +93,32 @@ async def list_experiences(session: SessionDep) -> list[Experience]:
         .order_by(col(Experience.start_date).desc())
     )
     return list((await session.exec(query)).all())
+
+
+async def load_projects(session: AsyncSession, project_id: int | None = None) -> list[Project]:
+    query = (
+        select(Project)
+        .options(selectinload(Project.skills), selectinload(Project.experience))  # type: ignore[arg-type]
+        .order_by(col(Project.id))
+        .execution_options(populate_existing=True)
+    )
+    if project_id is not None:
+        query = query.where(Project.id == project_id)
+    return list((await session.exec(query)).all())
+
+
+@app.post("/projects", status_code=201, response_model=ProjectRead)
+async def create_project(data: ProjectCreate, session: SessionDep) -> Project:
+    if data.experience_id is not None and await session.get(Experience, data.experience_id) is None:
+        raise HTTPException(status_code=422, detail="unknown experience_id")
+    skills = await find_skills(session, data.skills)
+    project = Project(**data.model_dump(exclude={"skills"}), skills=skills)
+    session.add(project)
+    await session.commit()
+    assert project.id is not None
+    return (await load_projects(session, project.id))[0]
+
+
+@app.get("/projects", response_model=list[ProjectRead])
+async def list_projects(session: SessionDep) -> list[Project]:
+    return await load_projects(session)
