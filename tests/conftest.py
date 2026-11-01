@@ -10,7 +10,7 @@ from src.db import get_session
 
 
 @pytest.fixture
-def client() -> Iterator[TestClient]:
+def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     engine = create_async_engine(
         "sqlite+aiosqlite://",
         connect_args={"check_same_thread": False},
@@ -22,6 +22,7 @@ def client() -> Iterator[TestClient]:
         async with factory() as session:
             yield session
 
+    monkeypatch.setattr("src.api.main.get_engine", lambda: engine)
     app.dependency_overrides[get_session] = override_session
     with TestClient(app) as test_client:
         yield test_client
