@@ -16,6 +16,9 @@ from src.models import (
     Project,
     ProjectCreate,
     ProjectRead,
+    ProjectRequest,
+    ProjectRequestCreate,
+    ProjectRequestRead,
     Skill,
     SkillCreate,
     SkillRead,
@@ -122,3 +125,20 @@ async def create_project(data: ProjectCreate, session: SessionDep) -> Project:
 @app.get("/projects", response_model=list[ProjectRead])
 async def list_projects(session: SessionDep) -> list[Project]:
     return await load_projects(session)
+
+
+@app.post("/project-requests", status_code=201, response_model=ProjectRequestRead)
+async def create_project_request(data: ProjectRequestCreate, session: SessionDep) -> ProjectRequest:
+    request = ProjectRequest.model_validate(data)
+    session.add(request)
+    await session.commit()
+    await session.refresh(request)
+    return request
+
+
+@app.get("/project-requests/{request_id}", response_model=ProjectRequestRead)
+async def get_project_request(request_id: int, session: SessionDep) -> ProjectRequest:
+    request = await session.get(ProjectRequest, request_id)
+    if request is None:
+        raise HTTPException(status_code=404, detail="project request not found")
+    return request

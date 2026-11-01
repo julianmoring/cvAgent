@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Self
 
@@ -111,3 +111,31 @@ class ProjectRead(ProjectBase):
     id: int
     experience: ExperienceBrief | None = None
     skills: list[SkillRead] = []
+
+
+class RequestStatus(StrEnum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    DONE = "done"
+    FAILED = "failed"
+
+
+class ProjectRequestBase(SQLModel):
+    title: str = Field(min_length=1)
+    description: str
+
+
+class ProjectRequest(ProjectRequestBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    status: RequestStatus = RequestStatus.PENDING
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ProjectRequestCreate(ProjectRequestBase):
+    pass
+
+
+class ProjectRequestRead(ProjectRequestBase):
+    id: int
+    status: RequestStatus
+    created_at: datetime
