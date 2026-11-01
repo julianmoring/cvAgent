@@ -17,9 +17,9 @@ Basadas en `docs/spec.md`. Cada tarea es un corte vertical: entrega algo que se 
 | 6 | Migraciones (Alembic) | ~330 | ~4k / ~12k |
 
 ## 1. Health con BD
-Instala `sqlmodel`, `asyncpg`, `pydantic-settings` y `aiosqlite` (dev). Crea `src/db.py` (config desde `.env`, engine async, sesión) y `GET /health` en `src/api/main.py`.
+Instala `sqlmodel`, `asyncpg`, `pydantic-settings`. Crea `src/db.py` (config desde `.env`, engine async, sesión) y `GET /health` en `src/api/main.py`.
 - **Entrega:** `GET /health` → `{"status": "ok", "db": true}`.
-- **Hecho cuando:** el test consulta `/health` con SQLite en memoria y responde 200 con `db: true`.
+- **Hecho cuando:** el test consulta `/health` contra Postgres y responde 200 con `db: true`.
 
 ## 2. Skills
 Crea `Skill` en `src/models.py` y los endpoints `POST /skills` y `GET /skills`.
@@ -57,7 +57,7 @@ Crea `ProjectRequest` con su estado y fecha de creación. Endpoints `POST /proje
 Añade `alembic`, la carpeta `migrations/` (plantilla async), la migración inicial con las 6 tablas y soporte de `DATABASE_URL`. Se elimina la creación de tablas al arrancar la app.
 - **Entrega:** `alembic upgrade head` crea todas las tablas en una BD vacía.
 - **Hecho cuando:**
-  - Un test aplica `upgrade head` sobre SQLite y existen las 6 tablas.
+  - Un test aplica `upgrade head` sobre una base de Postgres vacía y existen las 6 tablas.
   - Un test falla si los modelos difieren de las migraciones.
   - `downgrade base` deja la BD vacía.
   - `ruff`, `mypy` y `pytest` en verde.

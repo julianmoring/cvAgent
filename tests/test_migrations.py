@@ -1,14 +1,19 @@
-from pathlib import Path
+import asyncio
+from collections.abc import Iterator
 
 import pytest
 import src.models  # noqa: F401
 from alembic import command
 from alembic.autogenerate import compare_metadata
-from alembic.config import Config
 from alembic.migration import MigrationContext
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import inspect
+from sqlalchemy.engine import Connection
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
 from src.db import Settings
+from tests.conftest import alembic_config
+from tests.helpers import drop_database, recreate_database, url_for
 
 TABLES = {
     "skill",
@@ -21,42 +26,57 @@ TABLES = {
 
 
 @pytest.fixture
-def alembic_cfg(tmp_path: Path) -> Config:
-    db = tmp_path / "migrated.db"
-    cfg = Config("alembic.ini")
-    cfg.cmd_opts = type("Opts", (), {"x": [f"url=sqlite+aiosqlite:///{db.as_posix()}"]})()  # type: ignore[assignment]
-    return cfg
+def migration_db() -> Iterator[str]:
+    """Base de Postgres vacía para probar las migraciones por separado."""
+    url = url_for("migrations_test")
+    recreate_database(url)
+    yield url
+    drop_database(url)
 
 
-def sync_url(cfg: Config) -> str:
-    x = cfg.cmd_opts.x[0]  # type: ignore[union-attr]
-    return str(x).removeprefix("url=").replace("+aiosqlite", "")
+async def inspect_db(url: str, fn):  # type: ignore[no-untyped-def]
+    engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        async with engine.connect() as conn:
+            return await conn.run_sync(fn)
+    finally:
+        await engine.dispose()
 
 
-def test_upgrade_creates_all_tables(alembic_cfg: Config) -> None:
-    command.upgrade(alembic_cfg, "head")
-
-    engine = create_engine(sync_url(alembic_cfg))
-    assert TABLES <= set(inspect(engine).get_table_names())
+def table_names(conn: Connection) -> set[str]:
+    return set(inspect(conn).get_table_names())
 
 
-def test_models_match_migrations(alembic_cfg: Config) -> None:
-    command.upgrade(alembic_cfg, "head")
+def enum_names(conn: Connection) -> set[str]:
+    return {e["name"] for e in inspect(conn).get_enums()}
 
-    engine = create_engine(sync_url(alembic_cfg))
-    with engine.connect() as conn:
-        context = MigrationContext.configure(conn, opts={"compare_type": True})
-        diff = compare_metadata(context, SQLModel.metadata)
+
+def schema_diff(conn: Connection) -> list[object]:
+    context = MigrationContext.configure(conn, opts={"compare_type": True})
+    return list(compare_metadata(context, SQLModel.metadata))
+
+
+async def test_upgrade_creates_all_tables(migration_db: str) -> None:
+    await asyncio.to_thread(command.upgrade, alembic_config(migration_db), "head")
+
+    assert TABLES <= await inspect_db(migration_db, table_names)
+
+
+async def test_models_match_migrations(migration_db: str) -> None:
+    await asyncio.to_thread(command.upgrade, alembic_config(migration_db), "head")
+
+    diff = await inspect_db(migration_db, schema_diff)
 
     assert diff == [], "Hay cambios en los modelos sin migración: alembic revision --autogenerate"
 
 
-def test_downgrade_removes_tables(alembic_cfg: Config) -> None:
-    command.upgrade(alembic_cfg, "head")
-    command.downgrade(alembic_cfg, "base")
+async def test_downgrade_removes_tables_and_enums(migration_db: str) -> None:
+    cfg = alembic_config(migration_db)
+    await asyncio.to_thread(command.upgrade, cfg, "head")
+    await asyncio.to_thread(command.downgrade, cfg, "base")
 
-    engine = create_engine(sync_url(alembic_cfg))
-    assert TABLES.isdisjoint(inspect(engine).get_table_names())
+    assert TABLES.isdisjoint(await inspect_db(migration_db, table_names))
+    assert await inspect_db(migration_db, enum_names) == set()
 
 
 def test_database_url_prefers_database_url_variable() -> None:

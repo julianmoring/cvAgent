@@ -22,13 +22,13 @@ Solo la **persistencia de datos**. El agente y el endpoint quedan para fases sig
 
 ## Pasos de desarrollo
 
-1. **Dependencias**: añadir `sqlmodel`, `asyncpg`, `pydantic-settings` y `aiosqlite` (dev).
+1. **Dependencias**: añadir `sqlmodel`, `asyncpg`, `pydantic-settings`.
    *Hecho cuando:* `uv sync` termina sin errores.
 2. **`src/models.py`**: las 4 entidades y las 2 tablas de relación.
    *Hecho cuando:* `mypy` en modo strict pasa.
 3. **`src/db.py`**: lee la config del `.env`, crea el engine async y la sesión.
    *Hecho cuando:* construye la URL de Postgres a partir de `POSTGRES_*`.
-4. **Tests** (con SQLite en memoria):
+4. **Tests** (contra una base de Postgres de pruebas):
    - Se pueden crear y leer Skill, Experience y Project.
    - La relación con Skills funciona en ambos sentidos.
    - No se pueden duplicar nombres de Skill.

@@ -18,7 +18,7 @@ target_metadata = SQLModel.metadata
 
 
 def get_url() -> str:
-    """URL por `-x url=...` (tests, SQLite) o, si no, la de `Settings` (.env)."""
+    """URL por `-x url=...` o, si no, la de `Settings` (.env)."""
     override = context.get_x_argument(as_dictionary=True).get("url")
     return override or Settings().database_url
 
