@@ -35,3 +35,13 @@ Solo la **persistencia de datos**. El agente y el endpoint quedan para fases sig
    - Una `ProjectRequest` nueva nace en `pending`.
    *Hecho cuando:* `pytest` pasa, incluido el test que ya existía.
 5. **Calidad**: `ruff` y `pre-commit` en verde.
+
+## Migraciones (Alembic)
+El esquema de la BD lo gestiona Alembic; la app ya no crea tablas al arrancar.
+
+- **Conexión:** `DATABASE_URL` en el `.env` (si existe) o, si no, las variables `POSTGRES_*`.
+- **Aplicar el esquema:** `uv run alembic upgrade head`.
+- **Cambiar un modelo:** editar `src/models.py` → `uv run alembic revision --autogenerate -m "descripción"` → revisar el archivo generado → `uv run alembic upgrade head`.
+- **Deshacer:** `uv run alembic downgrade -1`.
+- **Control:** un test falla si los modelos difieren de las migraciones.
+

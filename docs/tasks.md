@@ -14,6 +14,7 @@ Basadas en `docs/spec.md`. Cada tarea es un corte vertical: entrega algo que se 
 | 3 | Experiences | ~180 | ~2.2k / ~6.5k |
 | 4 | Projects | ~190 | ~2.3k / ~7k |
 | 5 | ProjectRequests | ~130 | ~1.6k / ~5k |
+| 6 | Migraciones (Alembic) | ~330 | ~4k / ~12k |
 
 ## 1. Health con BD
 Instala `sqlmodel`, `asyncpg`, `pydantic-settings` y `aiosqlite` (dev). Crea `src/db.py` (config desde `.env`, engine async, sesión) y `GET /health` en `src/api/main.py`.
@@ -51,3 +52,13 @@ Crea `ProjectRequest` con su estado y fecha de creación. Endpoints `POST /proje
   - `POST` devuelve 201 con `status: "pending"` y `created_at`.
   - `GET /{id}` devuelve la petición.
   - Un id inexistente devuelve 404.
+
+## 6. Migraciones (Alembic)
+Añade `alembic`, la carpeta `migrations/` (plantilla async), la migración inicial con las 6 tablas y soporte de `DATABASE_URL`. Se elimina la creación de tablas al arrancar la app.
+- **Entrega:** `alembic upgrade head` crea todas las tablas en una BD vacía.
+- **Hecho cuando:**
+  - Un test aplica `upgrade head` sobre SQLite y existen las 6 tablas.
+  - Un test falla si los modelos difieren de las migraciones.
+  - `downgrade base` deja la BD vacía.
+  - `ruff`, `mypy` y `pytest` en verde.
+

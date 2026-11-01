@@ -1,14 +1,12 @@
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
-from sqlmodel import SQLModel, col, select, text
+from sqlmodel import col, select, text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from src.db import get_engine, get_session
+from src.db import get_session
 from src.models import (
     Experience,
     ExperienceCreate,
@@ -24,15 +22,7 @@ from src.models import (
     SkillRead,
 )
 
-
-@asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    async with get_engine().begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-    yield
-
-
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
