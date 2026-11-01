@@ -4,11 +4,19 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import SQLModel, select, text
+from sqlalchemy.orm import selectinload
+from sqlmodel import SQLModel, col, select, text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.db import get_engine, get_session
-from src.models import Skill, SkillCreate, SkillRead
+from src.models import (
+    Experience,
+    ExperienceCreate,
+    ExperienceRead,
+    Skill,
+    SkillCreate,
+    SkillRead,
+)
 
 
 @asynccontextmanager
@@ -54,3 +62,26 @@ async def create_skill(data: SkillCreate, session: SessionDep) -> Skill:
 async def list_skills(session: SessionDep) -> list[Skill]:
     result = await session.exec(select(Skill).order_by(Skill.name))
     return list(result.all())
+
+
+@app.post("/experiences", status_code=201, response_model=ExperienceRead)
+async def create_experience(data: ExperienceCreate, session: SessionDep) -> Experience:
+    names = set(data.skills)
+    found = (await session.exec(select(Skill).where(col(Skill.name).in_(names)))).all()
+    missing = names - {skill.name for skill in found}
+    if missing:
+        raise HTTPException(status_code=422, detail=f"unknown skills: {sorted(missing)}")
+    experience = Experience(**data.model_dump(exclude={"skills"}), skills=list(found))
+    session.add(experience)
+    await session.commit()
+    return experience
+
+
+@app.get("/experiences", response_model=list[ExperienceRead])
+async def list_experiences(session: SessionDep) -> list[Experience]:
+    query = (
+        select(Experience)
+        .options(selectinload(Experience.skills))  # type: ignore[arg-type]
+        .order_by(col(Experience.start_date).desc())
+    )
+    return list((await session.exec(query)).all())

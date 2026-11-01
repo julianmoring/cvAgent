@@ -1,6 +1,9 @@
+from datetime import date
 from enum import StrEnum
+from typing import Self
 
-from sqlmodel import Field, SQLModel
+from pydantic import model_validator
+from sqlmodel import Field, Relationship, SQLModel
 
 
 class SkillCategory(StrEnum):
@@ -11,6 +14,11 @@ class SkillCategory(StrEnum):
     OTHER = "other"
 
 
+class ExperienceSkillLink(SQLModel, table=True):
+    experience_id: int = Field(foreign_key="experience.id", primary_key=True)
+    skill_id: int = Field(foreign_key="skill.id", primary_key=True)
+
+
 class SkillBase(SQLModel):
     name: str = Field(index=True, unique=True, min_length=1)
     category: SkillCategory = SkillCategory.OTHER
@@ -19,6 +27,9 @@ class SkillBase(SQLModel):
 
 class Skill(SkillBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
+    experiences: list[Experience] = Relationship(
+        back_populates="skills", link_model=ExperienceSkillLink
+    )
 
 
 class SkillCreate(SkillBase):
@@ -27,3 +38,32 @@ class SkillCreate(SkillBase):
 
 class SkillRead(SkillBase):
     id: int
+
+
+class ExperienceBase(SQLModel):
+    company: str = Field(min_length=1)
+    role: str = Field(min_length=1)
+    description: str
+    location: str | None = None
+    start_date: date
+    end_date: date | None = None
+
+
+class Experience(ExperienceBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    skills: list[Skill] = Relationship(back_populates="experiences", link_model=ExperienceSkillLink)
+
+
+class ExperienceCreate(ExperienceBase):
+    skills: list[str] = []
+
+    @model_validator(mode="after")
+    def check_dates(self) -> Self:
+        if self.end_date is not None and self.end_date < self.start_date:
+            raise ValueError("end_date must not be before start_date")
+        return self
+
+
+class ExperienceRead(ExperienceBase):
+    id: int
+    skills: list[SkillRead] = []
