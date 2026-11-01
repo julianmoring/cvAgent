@@ -114,3 +114,7 @@ def downgrade() -> None:
     op.drop_table("projectrequest")
     op.drop_table("experience")
     # ### end Alembic commands ###
+    # Postgres no borra los tipos Enum al borrar las tablas (en SQLite es un no-op).
+    bind = op.get_bind()
+    sa.Enum(name="skillcategory").drop(bind, checkfirst=True)
+    sa.Enum(name="requeststatus").drop(bind, checkfirst=True)
